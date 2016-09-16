@@ -1,0 +1,6 @@
+resolver: lts-7.0
+packages:
+- '.'
+- 'submodules/henet'
+extra-deps:
+- typesafe-endian-0.1.0.1
