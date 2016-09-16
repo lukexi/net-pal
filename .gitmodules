@@ -1,0 +1,3 @@
+[submodule "submodules/henet"]
+	path = submodules/henet
+	url = git@github.com:lukexi/henet
