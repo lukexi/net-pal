@@ -57,7 +57,8 @@ startClient hostConfig address port = do
     _clientThread <- forkOS $ withENetDo $ do
 
         -- Create the host
-        let noPublicAddress = Nothing -- Nothing == Client (address is for public connection)
+        -- Nothing == this is a Client
+        let noPublicAddress = Nothing
 
         host <- fromJustNote "Couldn't create host :(" <$>
             createHostWithConfig hostConfig noPublicAddress
@@ -69,27 +70,9 @@ startClient hostConfig address port = do
         -- Await the connection event
         awaitConnection host serverPeer 5000
 
-        forever $ do
-            -- Send incoming messages to the server
-            atomically (tryReadTChan outgoingChan) >>= mapM_
-                (\(flags, message) -> do
-                    sendMessage
-                        serverPeer
-                        (ChannelID 0)
-                        flags
-                        message
-                )
-            let maxWaitMillisec = 1
-            maybeEvent <- hostService host maxWaitMillisec
-            case maybeEvent of
-                Right (Just event) -> do
-                    case evtType event of
-                        Receive -> do
-                            Packet _flags contents <- packetPeek (evtPacket event)
-                            atomically $ writeTChan incomingChan $!
-                                decodeStrict contents
-                        _ -> return ()
-                    print event
-                Left anError -> putStrLn anError
-                _ -> return ()
+        messageLoop host incomingChan outgoingChan
+            (sendMessage serverPeer)
+
     return (outgoingChan, incomingChan)
+
+

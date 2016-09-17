@@ -25,7 +25,7 @@ main :: IO ()
 main = do
     (sendChan, receiveChan) <- startServer serverHostConfig 1234
 
-    forever $ do
+    _ <- forever $ do
         message <- atomically $ tryReadTChan receiveChan
         putStrLn $ "RECEIVED: " ++ show message
         threadDelay 1000000
