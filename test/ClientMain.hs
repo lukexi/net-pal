@@ -12,6 +12,15 @@ import Shared
 import Network.Pal.Client
 import Network.Pal.Shared
 
+clientHostConfig :: HostConfig
+clientHostConfig = HostConfig
+    { hcMaxClients = 1
+    , hcNumChannels = 2
+    , hcBandwidthIn = 0
+    , hcBandwidthOut = 0
+    }
+
+
 main :: IO ()
 main = do
     (sendChan, receiveChan) <- startClient clientHostConfig "127.0.0.1" 1234
@@ -26,10 +35,3 @@ main = do
             )
 
 
-clientHostConfig :: HostConfig
-clientHostConfig = HostConfig
-    { hcMaxClients = 1
-    , hcNumChannels = 2
-    , hcBandwidthIn = 0
-    , hcBandwidthOut = 0
-    }

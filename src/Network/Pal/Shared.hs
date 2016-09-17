@@ -31,3 +31,13 @@ createHostWithConfig :: HostConfig
 createHostWithConfig HostConfig{..} address = hostCreate address
     hcMaxClients hcNumChannels
     hcBandwidthIn hcBandwidthOut
+
+
+reliablePacket :: Binary a => a -> Packet
+reliablePacket contents = encodePacket [Reliable] contents
+
+encodePacket :: (Binary a, Foldable t, Functor t)
+             => t PacketFlag -> a -> Packet
+encodePacket flags contents = Packet
+    (makePacketFlagSet flags) (encodeStrict contents)
+

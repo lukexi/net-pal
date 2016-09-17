@@ -15,14 +15,6 @@ import Data.Binary
 import Network.Pal.Shared
 
 
-reliablePacket :: Binary a => a -> Packet
-reliablePacket contents = encodePacket [Reliable] contents
-
-encodePacket :: (Binary a, Foldable t, Functor t)
-             => t PacketFlag -> a -> Packet
-encodePacket flags contents = Packet
-    (makePacketFlagSet flags) (encodeStrict contents)
-
 
 connectToHost :: HostConfig
               -> Ptr Host -> String -> PortNumber -> IO (Maybe (Ptr Peer))
@@ -45,6 +37,12 @@ awaitConnection host peer maxTime = do
         _other -> do
             peerReset peer
             error "Failed to connect :("
+
+sendMessage :: (Binary a, Foldable t, Functor t)
+            => Ptr Peer -> ChannelID -> t PacketFlag -> a -> IO ()
+sendMessage peer channelID flags message =
+    peerSend peer channelID =<<
+        packetPoke (encodePacket flags message)
 
 startClient :: Binary a
             => HostConfig
@@ -72,11 +70,15 @@ startClient hostConfig address port = do
         awaitConnection host serverPeer 5000
 
         forever $ do
-            atomically (tryReadTChan outgoingChan) >>= \case
-                Nothing -> return ()
-                Just (flags, message) -> do
-                    peerSend serverPeer (ChannelID 0) =<<
-                        packetPoke (encodePacket flags message)
+            -- Send incoming messages to the server
+            atomically (tryReadTChan outgoingChan) >>= mapM_
+                (\(flags, message) -> do
+                    sendMessage
+                        serverPeer
+                        (ChannelID 0)
+                        flags
+                        message
+                )
             let maxWaitMillisec = 1
             maybeEvent <- hostService host maxWaitMillisec
             case maybeEvent of
