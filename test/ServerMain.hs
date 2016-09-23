@@ -11,6 +11,7 @@ import Network.Pal.Shared
 
 import Shared
 import Network.ENet
+
 serverHostConfig :: HostConfig
 serverHostConfig = HostConfig
     { hcMaxClients = 32
@@ -26,12 +27,17 @@ main = do
     (sendChan, receiveChan) <- startServer serverHostConfig 1234
 
     _ <- forever $ do
-        message <- atomically $ tryReadTChan receiveChan
-        putStrLn $ "RECEIVED: " ++ show message
-        threadDelay 1000000
-        atomically $ writeTChan sendChan $
-            ( [Reliable]
-            , EntityUpdate 1234 (1.2, 3.4)
-            )
+        maybeMessage <- atomically $ tryReadTChan receiveChan
+
+        case maybeMessage of
+            Nothing -> return ()
+            Just (peer, message) -> do
+                putStrLn $ "RECEIVED: " ++ show message
+                threadDelay 1000000
+                atomically $ writeTChan sendChan $
+                    ( [Reliable]
+                    , peer
+                    , message :: Message
+                    )
     return ()
 

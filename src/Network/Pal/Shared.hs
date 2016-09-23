@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE BangPatterns #-}
 module Network.Pal.Shared where
 import Foreign.C
 import Data.Word
@@ -8,8 +9,6 @@ import Data.ByteString (ByteString)
 import Network.Socket
 import Foreign.Ptr
 import Network.ENet
-import Control.Concurrent.STM
-import Control.Monad
 
 data HostConfig = HostConfig
     { hcMaxClients :: CSize
@@ -25,6 +24,7 @@ fromJustNote note m = case m of
 
 decodeStrict :: Binary a => ByteString -> a
 decodeStrict = decode . L.fromStrict
+
 encodeStrict :: Binary a => a -> ByteString
 encodeStrict = L.toStrict . encode
 
@@ -44,27 +44,3 @@ encodePacket flags contents = Packet
     (makePacketFlagSet flags) (encodeStrict contents)
 
 
-messageLoop host incomingChan outgoingChan outgoingAction = forever $ do
-    -- Pass outgoing messages to the outgoing action
-    atomically (tryReadTChan outgoingChan) >>= mapM_
-        (\(flags, message) -> do
-            outgoingAction
-                (ChannelID 0)
-                flags
-                message
-        )
-
-    -- Write incoming messages to the incomingChan
-    let maxWaitMillisec = 1
-    maybeEvent <- hostService host maxWaitMillisec
-    case maybeEvent of
-        Right (Just event) -> do
-            case evtType event of
-                Receive -> do
-                    Packet _flags contents <- packetPeek (evtPacket event)
-                    atomically $ writeTChan incomingChan $!
-                        decodeStrict contents
-                _ -> return ()
-            print event
-        Left anError -> putStrLn anError
-        _ -> return ()

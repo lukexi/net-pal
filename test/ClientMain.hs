@@ -27,6 +27,7 @@ main = do
 
     forever $ do
         message <- atomically $ tryReadTChan receiveChan
+
         putStrLn $ "RECEIVED: " ++ show message
         threadDelay 1000000
         atomically $ writeTChan sendChan $

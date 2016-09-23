@@ -1,11 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE BangPatterns #-}
 module Network.Pal.Client where
 import Foreign.Ptr
 import Control.Concurrent
 import Control.Concurrent.STM
-import Control.Monad
 import Network.Socket (SockAddr(..), inet_addr, PortNumber)
 
 import Network.ENet
@@ -13,6 +13,8 @@ import Network.ENet
 import Data.Binary
 
 import Network.Pal.Shared
+import Control.Monad
+
 
 
 
@@ -66,13 +68,40 @@ startClient hostConfig address port = do
         -- Connect to the server
         serverPeer <- fromJustNote "Couldn't connect to host :(" <$>
             connectToHost hostConfig host address port
+        print serverPeer
 
         -- Await the connection event
         awaitConnection host serverPeer 5000
 
-        messageLoop host incomingChan outgoingChan
-            (sendMessage serverPeer)
+        clientLoop host serverPeer incomingChan outgoingChan
 
     return (outgoingChan, incomingChan)
 
+clientLoop :: (Binary a)
+           => Ptr Host
+           -> Ptr Peer
+           -> TChan a
+           -> TChan ([PacketFlag], a) -> IO b
+clientLoop host serverPeer incomingChan outgoingChan = forever $ do    -- Pass outgoing messages to the outgoing action
+    atomically (tryReadTChan outgoingChan) >>= mapM_
+        (\(flags, message) -> do
+            sendMessage serverPeer
+                (ChannelID 0)
+                flags
+                message
+        )
 
+    -- Write incoming messages to the incomingChan
+    let maxWaitMillisec = 1
+    maybeEvent <- hostService host maxWaitMillisec
+    case maybeEvent of
+        Right (Just event) -> do
+            case evtType event of
+                Receive -> do
+                    Packet _flags contents <- packetPeek (evtPacket event)
+                    let !message = decodeStrict contents
+                    atomically $ writeTChan incomingChan message
+                _ -> return ()
+            print event
+        Left anError -> putStrLn anError
+        _ -> return ()
